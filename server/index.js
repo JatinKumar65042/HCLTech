@@ -1,5 +1,7 @@
+// Load environment variables FIRST
+require('dotenv').config();
+
 const express = require('express');
-const dotenv = require('dotenv');
 const colors = require('colors');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -13,9 +15,6 @@ const publicRoute = require('./src/routes/public.route.js');
 
 // Specific router
 const app = express();
-
-// dotenv configurations
-dotenv.config();
 
 // Connect to Database
 connectDb();

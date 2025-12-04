@@ -7,7 +7,9 @@ import Home from './pages/Home';
 import PublicHealthInfoPage from './pages/Public/healt-info';
 import PatientProfile from './pages/Profile/PatientProfile';
 import PatientDashboard from './pages/Dashboard/PatientDashboard';
+import ProviderDashboard from './pages/Dashboard/ProviderDashboard';
 import GoalTracker from './pages/GoalTracker/GoalTracker';
+import PatientOverview from './pages/Provider/PatientOverview';
 
 function App() {
     return (
@@ -40,6 +42,24 @@ function App() {
                 element={
                     <ProtectedRoute requiredRole="patient">
                         <GoalTracker />
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Provider Routes - Protected */}
+            <Route
+                path="/provider/dashboard"
+                element={
+                    <ProtectedRoute requiredRole="provider">
+                        <ProviderDashboard />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/provider/patients/:id"
+                element={
+                    <ProtectedRoute requiredRole="provider">
+                        <PatientOverview />
                     </ProtectedRoute>
                 }
             />

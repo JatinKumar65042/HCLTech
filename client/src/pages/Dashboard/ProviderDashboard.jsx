@@ -1,212 +1,297 @@
-import React, { useState } from "react";
-
-// Hardcoded data for now – replace with API later
-const SAMPLE_PATIENTS = [
-  {
-    id: "p1",
-    name: "Aarav Sharma",
-    age: 32,
-    condition: "General Wellness",
-    complianceStatus: "Goal Met",
-    lastCheckup: "2025-11-20",
-    annualBloodTest: "2025-12-25",
-    goals: {
-      stepsGoal: 8000,
-      stepsAvg: 8500,
-      sleepGoal: 7,
-      sleepAvg: 7.3,
-      waterGoal: 3,
-      waterAvg: 3.1,
-    },
-  },
-  {
-    id: "p2",
-    name: "Priya Verma",
-    age: 28,
-    condition: "PCOS Management",
-    complianceStatus: "Missed Preventive Checkup",
-    lastCheckup: "2025-07-02",
-    annualBloodTest: "2025-10-10",
-    goals: {
-      stepsGoal: 7000,
-      stepsAvg: 5200,
-      sleepGoal: 7,
-      sleepAvg: 6.1,
-      waterGoal: 2.5,
-      waterAvg: 2.0,
-    },
-  },
-  {
-    id: "p3",
-    name: "Rahul Singh",
-    age: 45,
-    condition: "Hypertension",
-    complianceStatus: "Pending",
-    lastCheckup: "2025-09-15",
-    annualBloodTest: "2026-01-05",
-    goals: {
-      stepsGoal: 6000,
-      stepsAvg: 5800,
-      sleepGoal: 7,
-      sleepAvg: 6.9,
-      waterGoal: 2.5,
-      waterAvg: 2.4,
-    },
-  },
-];
+import React, { useState, useEffect } from 'react';
+import { Users, Search, TrendingUp, AlertCircle, CheckCircle, Clock, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { providerAPI } from '../../api/axios';
+import Navbar from '../../components/Navbar';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 const ProviderDashboard = () => {
-  const [selectedPatient, setSelectedPatient] = useState(SAMPLE_PATIENTS[0]);
+  const { user } = useAuth();
+  const [patients, setPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  const totalPatients = SAMPLE_PATIENTS.length;
-  const goalMetCount = SAMPLE_PATIENTS.filter(
-    (p) => p.complianceStatus === "Goal Met"
-  ).length;
-  const missedCheckupCount = SAMPLE_PATIENTS.filter(
-    (p) => p.complianceStatus === "Missed Preventive Checkup"
-  ).length;
+  useEffect(() => {
+    fetchPatients();
+  }, []);
 
-  const handleSelectPatient = (patient) => {
-    setSelectedPatient(patient);
+  useEffect(() => {
+    filterPatientsList();
+  }, [searchTerm, filterStatus, patients]);
+
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const response = await providerAPI.getPatients();
+      setPatients(response.data.data);
+      setFilteredPatients(response.data.data);
+    } catch (err) {
+      console.error('Error fetching patients:', err);
+      setError('Failed to load patients list');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatusClass = (status) => {
-    if (status === "Goal Met") return "badge badge-success";
-    if (status === "Missed Preventive Checkup") return "badge badge-danger";
-    return "badge badge-warning";
+  const filterPatientsList = () => {
+    let filtered = patients;
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(patient =>
+        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.email.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filter by compliance status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(patient => patient.complianceStatus === filterStatus);
+    }
+
+    setFilteredPatients(filtered);
   };
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'Goal Met': {
+        bg: 'bg-green-100',
+        text: 'text-green-700',
+        icon: CheckCircle,
+      },
+      'Missed Preventive Checkup': {
+        bg: 'bg-red-100',
+        text: 'text-red-700',
+        icon: AlertCircle,
+      },
+      'Pending': {
+        bg: 'bg-amber-100',
+        text: 'text-amber-700',
+        icon: Clock,
+      },
+    };
+
+    const config = statusConfig[status] || statusConfig['Pending'];
+    const Icon = config.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1 px-3 py-1 ${config.bg} ${config.text} rounded-full text-sm font-medium`}>
+        <Icon size={16} />
+        {status || 'Pending'}
+      </span>
+    );
+  };
+
+  const stats = {
+    total: patients.length,
+    goalMet: patients.filter(p => p.complianceStatus === 'Goal Met').length,
+    missed: patients.filter(p => p.complianceStatus === 'Missed Preventive Checkup').length,
+    pending: patients.filter(p => p.complianceStatus === 'Pending' || !p.complianceStatus).length,
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <LoadingSpinner size="lg" text="Loading patients..." />
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="dashboard-container">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div>
-          <h1>Healthcare Provider View</h1>
-          <p>
-            View assigned patients and their compliance status. Click a patient
-            to see detailed goals and compliance.
-          </p>
-        </div>
-      </header>
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg">
+                <Users size={28} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Provider Dashboard</h1>
+                <p className="text-gray-600">Welcome back, Dr. {user?.name}</p>
+              </div>
+            </div>
+          </div>
 
-      {/* Summary cards */}
-      <section className="grid">
-        <div className="card">
-          <h3>Total Patients</h3>
-          <p className="big-number">{totalPatients}</p>
-        </div>
-        <div className="card">
-          <h3>Goal Met</h3>
-          <p className="big-number">{goalMetCount}</p>
-        </div>
-        <div className="card">
-          <h3>Missed Preventive Checkup</h3>
-          <p className="big-number warning">{missedCheckupCount}</p>
-        </div>
-      </section>
-
-      <div className="layout-two-columns">
-        {/* Left: patient list */}
-        <section className="card big-card">
-          <h2>Assigned Patients</h2>
-          <table className="patient-table">
-            <thead>
-              <tr>
-                <th>Patient</th>
-                <th>Age</th>
-                <th>Condition</th>
-                <th>Compliance Status</th>
-                <th>Last Checkup</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_PATIENTS.map((patient) => (
-                <tr
-                  key={patient.id}
-                  onClick={() => handleSelectPatient(patient)}
-                  className={
-                    selectedPatient?.id === patient.id ? "row-selected" : ""
-                  }
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-600">{error}</p>
+                <button
+                  onClick={fetchPatients}
+                  className="mt-2 text-sm text-red-700 underline hover:text-red-800"
                 >
-                  <td>{patient.name}</td>
-                  <td>{patient.age}</td>
-                  <td>{patient.condition}</td>
-                  <td>
-                    <span className={getStatusClass(patient.complianceStatus)}>
-                      {patient.complianceStatus}
-                    </span>
-                  </td>
-                  <td>
-                    {new Date(patient.lastCheckup).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="helper-text">
-            Tip: later this table will come from{" "}
-            <code>/api/provider/patients</code>.
-          </p>
-        </section>
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* Right: selected patient details */}
-        {selectedPatient && (
-          <section className="card big-card">
-            <h2>Patient Details</h2>
-            <h3>{selectedPatient.name}</h3>
-            <p>
-              <strong>Age:</strong> {selectedPatient.age}
-            </p>
-            <p>
-              <strong>Condition:</strong> {selectedPatient.condition}
-            </p>
-            <p>
-              <strong>Annual Blood Test:</strong>{" "}
-              {new Date(
-                selectedPatient.annualBloodTest
-              ).toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-            <p>
-              <strong>Compliance Status:</strong>{" "}
-              <span className={getStatusClass(selectedPatient.complianceStatus)}>
-                {selectedPatient.complianceStatus}
-              </span>
-            </p>
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Total Patients</p>
+                  <h3 className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</h3>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Users size={24} className="text-blue-600" />
+                </div>
+              </div>
+            </div>
 
-            <hr style={{ margin: "16px 0" }} />
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Goals Met</p>
+                  <h3 className="text-3xl font-bold text-green-600 mt-1">{stats.goalMet}</h3>
+                </div>
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <CheckCircle size={24} className="text-green-600" />
+                </div>
+              </div>
+            </div>
 
-            <h3>Goals & Progress (Hardcoded Summary)</h3>
-            <ul className="detail-list">
-              <li>
-                Steps: {selectedPatient.goals.stepsAvg} /{" "}
-                {selectedPatient.goals.stepsGoal} per day (avg)
-              </li>
-              <li>
-                Sleep: {selectedPatient.goals.sleepAvg} /{" "}
-                {selectedPatient.goals.sleepGoal} hours (avg)
-              </li>
-              <li>
-                Water: {selectedPatient.goals.waterAvg} /{" "}
-                {selectedPatient.goals.waterGoal} L per day
-              </li>
-            </ul>
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Missed Checkups</p>
+                  <h3 className="text-3xl font-bold text-red-600 mt-1">{stats.missed}</h3>
+                </div>
+                <div className="p-3 bg-red-100 rounded-lg">
+                  <AlertCircle size={24} className="text-red-600" />
+                </div>
+              </div>
+            </div>
 
-            <p className="helper-text">
-              Later this panel can use{" "}
-              <code>/api/provider/patients/:id</code> to show real data.
-            </p>
-          </section>
-        )}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Pending</p>
+                  <h3 className="text-3xl font-bold text-amber-600 mt-1">{stats.pending}</h3>
+                </div>
+                <div className="p-3 bg-amber-100 rounded-lg">
+                  <Clock size={24} className="text-amber-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters and Search */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search size={20} className="text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search patients by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Status Filter */}
+              <div className="md:w-64">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="block w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Goal Met">Goal Met</option>
+                  <option value="Missed Preventive Checkup">Missed Checkup</option>
+                  <option value="Pending">Pending</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Patients List */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">
+                Assigned Patients ({filteredPatients.length})
+              </h2>
+            </div>
+
+            {filteredPatients.length === 0 ? (
+              <div className="text-center py-12">
+                <Users size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 text-lg">
+                  {searchTerm || filterStatus !== 'all'
+                    ? 'No patients match your filters'
+                    : 'No patients assigned yet'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Patient</th>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Age</th>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Contact</th>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Goals</th>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Status</th>
+                      <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredPatients.map((patient) => (
+                      <tr key={patient._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-4 px-6">
+                          <div>
+                            <p className="font-semibold text-gray-900">{patient.name}</p>
+                            <p className="text-sm text-gray-500">{patient.email}</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6 text-gray-700">{patient.age}</td>
+                        <td className="py-4 px-6 text-gray-700">{patient.phone}</td>
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Activity size={16} className="text-teal-600" />
+                            <span>{patient.stepsGoal} steps</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6">
+                          {getStatusBadge(patient.complianceStatus)}
+                        </td>
+                        <td className="py-4 px-6">
+                          <Link
+                            to={`/provider/patients/${patient._id}`}
+                            className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-medium text-sm"
+                          >
+                            <TrendingUp size={16} />
+                            View Details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
